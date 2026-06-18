@@ -129,7 +129,7 @@ Attr-Mamba follows a cascaded encoder-decoder design:
 - **Objective**: `Ldice + Lfocal + 0.1 * Lbound`, with boundary weight map `W = 1 + 5B`.
 
 <p align="center">
-  <img src="assets/figures/Figure4.png" width="86%" alt="Conceptual comparison">
+  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure4.png" width="86%" alt="Conceptual comparison">
 </p>
 
 <p align="center"><b>Conceptual comparison.</b> Attr-Mamba bridges anatomy-guided localization and morphology-aware boundary refinement for attribute-guided coarse-to-fine Medical RIS.</p>
@@ -137,13 +137,13 @@ Attr-Mamba follows a cascaded encoder-decoder design:
 ## Framework
 
 <p align="center">
-  <img src="assets/figures/Figure1.png" width="100%" alt="Overall framework of Attr-Mamba">
+  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure1.png" width="100%" alt="Overall framework of Attr-Mamba">
 </p>
 
 <p align="center"><b>Overall framework.</b> Given a medical image and a referring text, Attr-Mamba extracts visual states, a sentence-level anatomical prior, and token-level textual states. Cascaded decoding performs SCM-based semantic calibration and BDM-based boundary refinement before multi-stage mask prediction.</p>
 
 <p align="center">
-  <img src="assets/figures/Figure2.png" width="95%" alt="SCM and BDM modules">
+  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure2.png" width="95%" alt="SCM and BDM modules">
 </p>
 
 <p align="center"><b>Core mechanisms.</b> SCM uses sentence-level anatomical priors for AdaLN-style visual calibration and gated SS2D residual injection. BDM uses token-level morphology cues and local visual windows for state-space interaction and text-state updating.</p>
@@ -160,7 +160,7 @@ The following values are selected results from the current manuscript draft and 
 | MosMedData+ | 66.01 | 79.61 | 13.19 | Best mIoU and HD95 among compared methods |
 
 <p align="center">
-  <img src="assets/figures/Figure3.jpg" width="100%" alt="Qualitative comparison">
+  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure3.jpg" width="100%" alt="Qualitative comparison">
 </p>
 
 <p align="center"><b>Qualitative comparison.</b> Yellow, red, and green denote true positives, false negatives, and false positives, respectively.</p>
@@ -182,7 +182,7 @@ The following values are selected results from the current manuscript draft and 
 | 4 | 69.62 | 78.41 | 10.20 | 216.20M | 219.89 | 16.85 |
 
 <p align="center">
-  <img src="assets/figures/Figure6.jpg" width="100%" alt="Stage-wise heatmap visualization">
+  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure6.jpg" width="100%" alt="Stage-wise heatmap visualization">
 </p>
 
 <p align="center"><b>Stage-wise heatmaps.</b> Spatial responses evolve from broad candidate regions to concentrated activations around referred lesions.</p>
@@ -190,7 +190,7 @@ The following values are selected results from the current manuscript draft and 
 ### Efficiency
 
 <p align="center">
-  <img src="assets/figures/efficiency_tradeoff_qata_tmi_final.png" width="62%" alt="Efficiency comparison on QaTa-COV19">
+  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/efficiency_tradeoff_qata_tmi_final.png" width="62%" alt="Efficiency comparison on QaTa-COV19">
 </p>
 
 On QaTa-COV19 at 224 x 224, Attr-Mamba uses 32.97 GFLOPs and reaches 26.88 FPS. Compared with LAVT, DMMI, LViT, and RefSegformer, it reduces GFLOPs by 60.7%, 47.9%, 39.1%, and 68.2%, respectively.
@@ -198,7 +198,7 @@ On QaTa-COV19 at 224 x 224, Attr-Mamba uses 32.97 GFLOPs and reaches 26.88 FPS. 
 ### Text Perturbation and Robustness
 
 <p align="center">
-  <img src="assets/figures/Figure5.jpg" width="100%" alt="Prompt perturbation visualization">
+  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure5.jpg" width="100%" alt="Prompt perturbation visualization">
 </p>
 
 <p align="center"><b>Controlled prompt perturbations.</b> Spatial perturbations mainly affect localization, while morphology perturbations mainly affect boundary quality.</p>
