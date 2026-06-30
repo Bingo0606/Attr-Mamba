@@ -4,13 +4,15 @@ Official implementation of **Attr-Mamba: Attribute-Guided State Space Model for 
 
 Attr-Mamba is designed for Medical Referring Image Segmentation (Medical RIS), where the model segments a lesion or target region according to a clinical-style natural language description. The framework separates anatomical/spatial cues for localization from morphology-related cues for boundary refinement through a progressive state-space decoder.
 
-## News
+## Highlights
 
-- Public release preparation for TMI submission.
-- Public clinical-style referring descriptions for Ref-LITS and Ref-LIDC are provided in `datasets/`.
-- Model weights and original image/mask datasets are **not** included.
+- Progressive medical referring image segmentation with anatomy-guided localization and morphology-aware boundary refinement.
+- Clinical-style referring descriptions for Ref-LITS and Ref-LIDC in `datasets/`.
+- Transparent evaluation with a fixed threshold and no connected-component post-processing.
 
 ## Requirements
+
+Python 3.10 is recommended. Building the selective-scan extension requires a CUDA toolkit compatible with the installed PyTorch version.
 
 ```bash
 conda create -n attr-mamba python=3.10
@@ -25,6 +27,20 @@ The code expects the following external pretrained backbones when training from 
 
 - RadBERT: pass with `--bert_path`, or place it at `./checkpoint/RadBERT`
 - Swin-T: pass with `--swin-pretrained`, or place it at `./checkpoint/swin_T/swin_tiny_patch4_window7_224.pth`
+
+## Repository Structure
+
+```text
+Attr-Mamba/
+|-- main.py                 # Training and evaluation entry point
+|-- engine.py               # Optimization and metric computation
+|-- model/                  # Attr-Mamba architecture and visual encoder
+|-- vmamba_model/           # State-space building blocks
+|-- selective_scan/         # CUDA selective-scan extension
+|-- ref_dataset/            # Medical referring segmentation loader
+|-- datasets/               # Clinical-style text descriptions
+`-- assets/figures/         # Method and result figures used in this README
+```
 
 ## Quick Start
 
@@ -75,13 +91,15 @@ python main.py \
   --vis-dir ./vis_results/ref_lits
 ```
 
+Training writes `checkpoint.pth`, `best_checkpoint.pth`, and `log.txt` to `--output_dir`. Set `--seed` to reproduce a run with the same software and hardware configuration.
+
 ## Public Text Descriptions
 
-We do not release the original CT images, masks, or trained weights. To support inspection of the clinical-style language component, we provide cleaned public referring descriptions:
+Cleaned referring descriptions are provided for inspection of the clinical-style language component:
 
 | File | Descriptions | Note |
 | --- | ---: | --- |
-| `datasets/Ref-Lits_descriptions.json` | 14,883 | Liver lesion referring descriptions |
+| `datasets/Ref-LITS_descriptions.json` | 14,883 | Liver lesion referring descriptions |
 | `datasets/Ref-LIDC_descriptions.json` | 8,721 | Pulmonary nodule referring descriptions |
 
 Each public description item contains only:
@@ -93,7 +111,7 @@ Each public description item contains only:
 }
 ```
 
-The public description files intentionally remove private or task-specific fields such as `image_path`, `mask_path`, `bbox`, `instance_id`, `attributes`, `patient_id`, and `slice_index`.
+Each description file uses a compact public schema containing only a sequential identifier and sentence text.
 
 The duplicate-removal rule for public descriptions is:
 
@@ -103,7 +121,16 @@ The duplicate-removal rule for public descriptions is:
 
 ## Dataset Format for Training
 
-To train the model, prepare your own image/mask dataset with split files such as `ref_lits_train.json`, `ref_lits_val.json`, and `ref_lits_test.json`.
+The dataset root should contain split metadata such as `ref_lits_train.json`, `ref_lits_val.json`, and `ref_lits_test.json`. Image and mask paths may be absolute or relative to the dataset root.
+
+```text
+DATA_ROOT/
+|-- ref_lits_train.json
+|-- ref_lits_val.json
+|-- ref_lits_test.json
+|-- images/
+`-- masks/
+```
 
 Each training item should contain:
 
@@ -129,7 +156,7 @@ Attr-Mamba follows a cascaded encoder-decoder design:
 - **Objective**: `Ldice + Lfocal + 0.1 * Lbound`, with boundary weight map `W = 1 + 5B`.
 
 <p align="center">
-  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure4.png" width="86%" alt="Conceptual comparison">
+  <img src="assets/figures/Figure4.png" width="86%" alt="Conceptual comparison">
 </p>
 
 <p align="center"><b>Conceptual comparison.</b> Attr-Mamba bridges anatomy-guided localization and morphology-aware boundary refinement for attribute-guided coarse-to-fine Medical RIS.</p>
@@ -137,13 +164,13 @@ Attr-Mamba follows a cascaded encoder-decoder design:
 ## Framework
 
 <p align="center">
-  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure1.png" width="100%" alt="Overall framework of Attr-Mamba">
+  <img src="assets/figures/Figure1.png" width="100%" alt="Overall framework of Attr-Mamba">
 </p>
 
 <p align="center"><b>Overall framework.</b> Given a medical image and a referring text, Attr-Mamba extracts visual states, a sentence-level anatomical prior, and token-level textual states. Cascaded decoding performs SCM-based semantic calibration and BDM-based boundary refinement before multi-stage mask prediction.</p>
 
 <p align="center">
-  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure2.png" width="95%" alt="SCM and BDM modules">
+  <img src="assets/figures/Figure2.png" width="95%" alt="SCM and BDM modules">
 </p>
 
 <p align="center"><b>Core mechanisms.</b> SCM uses sentence-level anatomical priors for AdaLN-style visual calibration and gated SS2D residual injection. BDM uses token-level morphology cues and local visual windows for state-space interaction and text-state updating.</p>
@@ -160,7 +187,7 @@ The following values are selected results from the current manuscript draft and 
 | MosMedData+ | 66.01 | 79.61 | 13.19 | Best mIoU and HD95 among compared methods |
 
 <p align="center">
-  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure3.jpg" width="100%" alt="Qualitative comparison">
+  <img src="assets/figures/Figure3.jpg" width="100%" alt="Qualitative comparison">
 </p>
 
 <p align="center"><b>Qualitative comparison.</b> Yellow, red, and green denote true positives, false negatives, and false positives, respectively.</p>
@@ -182,7 +209,7 @@ The following values are selected results from the current manuscript draft and 
 | 4 | 69.62 | 78.41 | 10.20 | 216.20M | 219.89 | 16.85 |
 
 <p align="center">
-  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure6.jpg" width="100%" alt="Stage-wise heatmap visualization">
+  <img src="assets/figures/Figure6.jpg" width="100%" alt="Stage-wise heatmap visualization">
 </p>
 
 <p align="center"><b>Stage-wise heatmaps.</b> Spatial responses evolve from broad candidate regions to concentrated activations around referred lesions.</p>
@@ -190,7 +217,7 @@ The following values are selected results from the current manuscript draft and 
 ### Efficiency
 
 <p align="center">
-  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/efficiency_tradeoff_qata_tmi_final.png" width="62%" alt="Efficiency comparison on QaTa-COV19">
+  <img src="assets/figures/efficiency_tradeoff_qata_tmi_final.png" width="62%" alt="Efficiency comparison on QaTa-COV19">
 </p>
 
 On QaTa-COV19 at 224 x 224, Attr-Mamba uses 32.97 GFLOPs and reaches 26.88 FPS. Compared with LAVT, DMMI, LViT, and RefSegformer, it reduces GFLOPs by 60.7%, 47.9%, 39.1%, and 68.2%, respectively.
@@ -198,7 +225,7 @@ On QaTa-COV19 at 224 x 224, Attr-Mamba uses 32.97 GFLOPs and reaches 26.88 FPS. 
 ### Text Perturbation and Robustness
 
 <p align="center">
-  <img src="https://github.com/Bingo0606/Attr-Mamba/raw/main/assets/figures/Figure5.jpg" width="100%" alt="Prompt perturbation visualization">
+  <img src="assets/figures/Figure5.jpg" width="100%" alt="Prompt perturbation visualization">
 </p>
 
 <p align="center"><b>Controlled prompt perturbations.</b> Spatial perturbations mainly affect localization, while morphology perturbations mainly affect boundary quality.</p>
@@ -219,13 +246,12 @@ On QaTa-COV19 at 224 x 224, Attr-Mamba uses 32.97 GFLOPs and reaches 26.88 FPS. 
 | Ref-LIDC | Original text | 60.89 | 74.78 | 2.89 |
 | Ref-LIDC | Clinical-style text | 60.35 | 74.20 | 4.36 |
 
-## Important Notes
+## Reproducibility Notes
 
-- No model weights are provided in this release.
-- No original image or mask data are provided in this release.
-- The public text description JSON files are included for transparency and language inspection only.
-- Dataset splitting and preprocessing scripts are not included; use externally prepared, fixed splits for reproducible experiments.
-- Random data augmentation, small-target filtering, and connected-component target selection are not used in the public training or evaluation pipeline.
+- Dataset splits are read exactly from the specified JSON files; the loader does not create or modify a split.
+- Images are resized with bilinear interpolation, while masks use nearest-neighbor interpolation.
+- Random data augmentation, small-target filtering, and connected-component target selection are not used.
+- Evaluation thresholds raw sigmoid outputs at `0.5` and reports mIoU, mDice, oIoU, and HD95.
 
 ## Acknowledgements
 
