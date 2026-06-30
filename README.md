@@ -102,7 +102,7 @@ Cleaned referring descriptions are provided for inspection of the clinical-style
 | `datasets/Ref-LITS_descriptions.json` | 14,883 | Liver lesion referring descriptions |
 | `datasets/Ref-LIDC_descriptions.json` | 8,721 | Pulmonary nodule referring descriptions |
 
-Each public description item contains only:
+Example entries follow this format:
 
 ```json
 {
@@ -110,40 +110,6 @@ Each public description item contains only:
   "sentence": "A tiny, round hypodensity with heterogeneous texture and well-circumscribed margins is located in the superior hepatic region."
 }
 ```
-
-Each description file uses a compact public schema containing only a sequential identifier and sentence text.
-
-The duplicate-removal rule for public descriptions is:
-
-- Ref-LITS: remove duplicates only when the original `file_id` and `bbox` are both identical.
-- Ref-LIDC: the provided metadata has no `bbox`; rows are kept distinct and no `file_id`-only deduplication is applied.
-- Sentence text is **not** deduplicated, because different samples may reasonably share the same clinical-style description.
-
-## Dataset Format for Training
-
-The dataset root should contain split metadata such as `ref_lits_train.json`, `ref_lits_val.json`, and `ref_lits_test.json`. Image and mask paths may be absolute or relative to the dataset root.
-
-```text
-DATA_ROOT/
-|-- ref_lits_train.json
-|-- ref_lits_val.json
-|-- ref_lits_test.json
-|-- images/
-`-- masks/
-```
-
-Each training item should contain:
-
-```json
-{
-  "image_path": "images/case_001.png",
-  "mask_path": "masks/case_001.png",
-  "sentence": "clinical-style referring expression",
-  "file_id": "case_001"
-}
-```
-
-The loader uses the provided mask as ground truth. It does not discard small targets, does not create dataset splits, does not apply random augmentation, and does not force predictions or labels into a single connected component.
 
 ## Method Overview
 
@@ -252,6 +218,10 @@ On QaTa-COV19 at 224 x 224, Attr-Mamba uses 32.97 GFLOPs and reaches 26.88 FPS. 
 - Images are resized with bilinear interpolation, while masks use nearest-neighbor interpolation.
 - Random data augmentation, small-target filtering, and connected-component target selection are not used.
 - Evaluation thresholds raw sigmoid outputs at `0.5` and reports mIoU, mDice, oIoU, and HD95.
+
+## Contact
+
+For questions about the implementation, contact Wenhui Huang at `whhuang.sdu@gmail.com`.
 
 ## Acknowledgements
 
