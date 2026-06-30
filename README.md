@@ -143,7 +143,7 @@ Attr-Mamba follows a cascaded encoder-decoder design:
 
 ## Experimental Results
 
-The following values are selected results from the current manuscript draft and may be updated during review. Metrics are reported as mIoU, mDice, and HD95.
+The following table summarizes selected benchmark results. Metrics are reported as mIoU, mDice, and HD95.
 
 | Dataset | mIoU | mDice | HD95 | Note |
 | --- | ---: | ---: | ---: | --- |
@@ -183,7 +183,7 @@ The following values are selected results from the current manuscript draft and 
 ### Efficiency
 
 <p align="center">
-  <img src="assets/figures/efficiency_tradeoff_qata_tmi_final.png" width="62%" alt="Efficiency comparison on QaTa-COV19">
+  <img src="assets/figures/efficiency_tradeoff_qata.png" width="62%" alt="Efficiency comparison on QaTa-COV19">
 </p>
 
 On QaTa-COV19 at 224 x 224, Attr-Mamba uses 32.97 GFLOPs and reaches 26.88 FPS. Compared with LAVT, DMMI, LViT, and RefSegformer, it reduces GFLOPs by 60.7%, 47.9%, 39.1%, and 68.2%, respectively.
