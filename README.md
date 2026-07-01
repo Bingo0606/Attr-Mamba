@@ -219,10 +219,6 @@ On QaTa-COV19 at 224 x 224, Attr-Mamba uses 32.97 GFLOPs and reaches 26.88 FPS. 
 - Random data augmentation, small-target filtering, and connected-component target selection are not used.
 - Evaluation thresholds raw sigmoid outputs at `0.5` and reports mIoU, mDice, oIoU, and HD95.
 
-## Contact
-
-For questions about the implementation, contact Wenhui Huang at `whhuang.sdu@gmail.com`.
-
 ## Acknowledgements
 
 This implementation builds on open-source components from Swin Transformer, VMamba/Mamba-style selective scanning, RadBERT, and prior referring image segmentation codebases. We thank the authors and maintainers of these projects.
