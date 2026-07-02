@@ -7,7 +7,7 @@ Attr-Mamba is designed for Medical Referring Image Segmentation (Medical RIS), w
 ## Highlights
 
 - Progressive medical referring image segmentation with anatomy-guided localization and morphology-aware boundary refinement.
-- Clinical-style referring descriptions for Ref-LITS and Ref-LIDC in `datasets/`.
+- Clinical-style referring descriptions and their construction protocol in `dataset_protocol/`.
 - Transparent evaluation with a fixed threshold and no connected-component post-processing.
 
 ## Requirements
@@ -38,7 +38,7 @@ Attr-Mamba/
 |-- vmamba_model/           # State-space building blocks
 |-- selective_scan/         # CUDA selective-scan extension
 |-- ref_dataset/            # Medical referring segmentation loader
-|-- datasets/               # Clinical-style text descriptions
+|-- dataset_protocol/       # Descriptions and public construction protocol
 `-- assets/figures/         # Method and result figures used in this README
 ```
 
@@ -51,7 +51,7 @@ python -m torch.distributed.launch --nproc_per_node=2 --use_env main.py \
   --distributed \
   --model AttrMamba \
   --data-set ref-lits \
-  --data-path ./datasets/Ref-LITS \
+  --data-path /path/to/Ref-LITS \
   --json-prefix ref_lits \
   --image-size 512 \
   --output_dir ./outputs/ref_lits \
@@ -68,7 +68,7 @@ python main.py \
   --eval \
   --model AttrMamba \
   --data-set ref-lits \
-  --data-path ./datasets/Ref-LITS \
+  --data-path /path/to/Ref-LITS \
   --json-prefix ref_lits \
   --test-split test \
   --resume ./outputs/ref_lits/best_checkpoint.pth
@@ -84,7 +84,7 @@ python main.py \
   --eval \
   --model AttrMamba \
   --data-set ref-lits \
-  --data-path ./datasets/Ref-LITS \
+  --data-path /path/to/Ref-LITS \
   --json-prefix ref_lits \
   --test-split test \
   --resume ./outputs/ref_lits/best_checkpoint.pth \
@@ -93,14 +93,27 @@ python main.py \
 
 Training writes `checkpoint.pth`, `best_checkpoint.pth`, and `log.txt` to `--output_dir`. Set `--seed` to reproduce a run with the same software and hardware configuration.
 
-## Public Text Descriptions
+## Dataset Protocol and Public Descriptions
 
-Cleaned referring descriptions are provided for inspection of the clinical-style language component:
+The released referring descriptions are provided with the public construction protocol:
 
 | File | Descriptions | Note |
 | --- | ---: | --- |
-| `datasets/Ref-LITS_descriptions.json` | 14,883 | Liver lesion referring descriptions |
-| `datasets/Ref-LIDC_descriptions.json` | 8,721 | Pulmonary nodule referring descriptions |
+| [`dataset_protocol/descriptions/Ref-LITS_descriptions.json`](dataset_protocol/descriptions/Ref-LITS_descriptions.json) | 14,883 | Liver lesion referring descriptions |
+| [`dataset_protocol/descriptions/Ref-LIDC_descriptions.json`](dataset_protocol/descriptions/Ref-LIDC_descriptions.json) | 8,721 | Pulmonary nodule referring descriptions |
+
+The [`dataset_protocol/`](dataset_protocol/) package also includes the representative generation prompt, attribute and output schemas, filtering rules, validation scripts, and compact examples. These materials document the attribute-anchored description pipeline and support independent inspection of its inputs, constraints, and outputs. Medical images and masks remain subject to the licenses of their source datasets and are not redistributed here.
+
+Validate the public examples and audit the package with:
+
+```bash
+python dataset_protocol/scripts/validate_descriptions.py \
+  --attributes dataset_protocol/examples/example_attributes.json \
+  --descriptions dataset_protocol/examples/example_descriptions.json
+python dataset_protocol/tools/audit_release.py dataset_protocol
+```
+
+See the [dataset protocol documentation](dataset_protocol/README.md) for the construction stages and released quality-control criteria.
 
 Example entries follow this format:
 
