@@ -43,6 +43,9 @@ class BaseSegmenter(nn.Module):
         super().__init__()
         self.backbone = backbone
         self.decoder = decoder
+        self.text_mode = kwargs.get("text_mode", "normal")
+        if self.text_mode not in {"normal", "empty", "no-text"}:
+            raise ValueError("text_mode must be one of: normal, empty, no-text")
 
         model_name = kwargs.get("bert_path", "./checkpoint/RadBERT")
         print(f"Loading text encoder: {model_name}")
@@ -52,7 +55,9 @@ class BaseSegmenter(nn.Module):
         for param in self.text_encoder.parameters():
             param.requires_grad = False
 
-    def forward(self, x, text, mask=None, **kwargs):
+    def forward(self, x, text, mask=None, return_intermediates=False, **kwargs):
+        if self.text_mode in {"empty", "no-text"}:
+            text = [""] * len(text)
         encode_text = self.tokenizer(
             text,
             padding="max_length",
@@ -65,12 +70,28 @@ class BaseSegmenter(nn.Module):
 
         input_shape = x.shape[-2:]
         ret = self.text_encoder(text_ids, attention_mask=l_mask)
-        l_feats = ret["last_hidden_state"].permute(0, 2, 1)
+        token_features = ret["last_hidden_state"]
+        l_feats = token_features.permute(0, 2, 1)
         l_mask = l_mask.unsqueeze(dim=-1)
-        pooler_out = ret["pooler_output"] if "pooler_output" in ret else ret["last_hidden_state"][:, 0, :]
+        # The manuscript defines f_cls as the first contextual token of the
+        # complete description; do not substitute a separate pooler head.
+        pooler_out = token_features[:, 0, :]
+        if self.text_mode == "no-text":
+            l_feats = torch.zeros_like(l_feats)
+            pooler_out = torch.zeros_like(pooler_out)
 
         img_feat = self.backbone(x, l_feats, l_mask)[-1]
-        pred = self.decoder(img_feat, l_feats, l_mask, pooler_out)
+        decoded = self.decoder(
+            img_feat,
+            l_feats,
+            l_mask,
+            pooler_out,
+            return_intermediates=return_intermediates,
+        )
+        if isinstance(decoded, tuple):
+            pred, stage_states = decoded
+        else:
+            pred, stage_states = decoded, None
         pred = F.interpolate(pred, input_shape, mode="bilinear", align_corners=True)
 
         if self.training:
@@ -85,12 +106,17 @@ class BaseSegmenter(nn.Module):
             l_boundary = boundary_loss(pred, mask, radius=1, eta=5.0)
             loss = l_dice + l_focal + 0.1 * l_boundary
 
-            return {
+            output = {
                 "pred_masks": pred,
                 "loss": loss,
                 "loss_dice": l_dice,
                 "loss_focal": l_focal,
                 "loss_boundary": l_boundary,
             }
+            if stage_states is not None:
+                output["stage_states"] = stage_states
+            return output
 
+        if stage_states is not None:
+            return {"pred_masks": pred, "stage_states": stage_states}
         return pred

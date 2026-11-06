@@ -4,6 +4,7 @@ import argparse
 import datetime
 import json
 import time
+import random
 from contextlib import suppress
 from pathlib import Path
 
@@ -34,6 +35,18 @@ def get_args_parser():
     parser.add_argument('--model-size', default='tiny', choices=['tiny', 'base'], type=str)
     parser.add_argument('--swin-pretrained', default='./checkpoint/swin_T/swin_tiny_patch4_window7_224.pth',
                         type=str, help='path to pretrained Swin-T weights')
+    parser.add_argument('--num-stages', default=4, type=int, choices=range(1, 7),
+                        help='number of cascaded SCM->BDM decoding stages')
+    parser.add_argument('--disable-scm', action='store_true',
+                        help='bypass SCM at inference/training for a retrained ablation')
+    parser.add_argument('--disable-bdm', action='store_true',
+                        help='bypass BDM at inference/training for a retrained ablation')
+    parser.add_argument('--text-mode', default='normal', choices=['normal', 'empty', 'no-text'],
+                        help='normal description, empty description, or zero text conditioning')
+    parser.add_argument('--dump-stage-states', action='store_true',
+                        help='return stage states during evaluation for visualization export')
+    parser.add_argument('--deterministic', action='store_true',
+                        help='enable deterministic cuDNN behavior for seed replication')
 
     parser.add_argument('--drop', type=float, default=0.0, metavar='PCT',
                         help='Dropout rate (default: 0.)')
@@ -147,10 +160,14 @@ def main(args):
 
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
+    random.seed(seed)
 
 
-    cudnn.benchmark = True
+    cudnn.benchmark = not args.deterministic
+    cudnn.deterministic = args.deterministic
     
     dataset_train = build_dataset(is_train=True, args=args)
     dataset_val = build_dataset(is_train=False, args=args)
@@ -203,6 +220,11 @@ def main(args):
         model_size=args.model_size,
         bert_path=args.bert_path,
         swin_pretrained=args.swin_pretrained,
+        num_stages=args.num_stages,
+        disable_scm=args.disable_scm,
+        disable_bdm=args.disable_bdm,
+        text_mode=args.text_mode,
+        return_intermediates=args.dump_stage_states,
     )
 
     if args.finetune:

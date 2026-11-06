@@ -169,6 +169,34 @@ def compute_hd95(pred_mask, gt_mask):
     return float(np.percentile(distances, 95))
 
 
+def compute_center_distance(pred_mask, gt_mask):
+    """Euclidean distance between binary-mask centroids in resized pixels."""
+    pred_mask, gt_mask = pred_mask.astype(bool), gt_mask.astype(bool)
+    if not pred_mask.any() and not gt_mask.any():
+        return 0.0
+    h, w = gt_mask.shape[-2:]
+    if not pred_mask.any() or not gt_mask.any():
+        return float(np.sqrt(h * h + w * w))
+    pred_yx = np.argwhere(pred_mask).mean(axis=0)
+    gt_yx = np.argwhere(gt_mask).mean(axis=0)
+    return float(np.linalg.norm(pred_yx - gt_yx))
+
+
+def compute_boundary_fscore(pred_mask, gt_mask, tolerance=2):
+    """Boundary F-score with the manuscript's two-pixel tolerance."""
+    pred_mask, gt_mask = pred_mask.astype(bool), gt_mask.astype(bool)
+    if not pred_mask.any() and not gt_mask.any():
+        return 1.0
+    if not pred_mask.any() or not gt_mask.any():
+        return 0.0
+    pred_surface, gt_surface = _surface(pred_mask), _surface(gt_mask)
+    pred_dist = cv2.distanceTransform((~pred_surface).astype(np.uint8), cv2.DIST_L2, 5)
+    gt_dist = cv2.distanceTransform((~gt_surface).astype(np.uint8), cv2.DIST_L2, 5)
+    precision = float((gt_dist[pred_surface] <= tolerance).mean()) if pred_surface.any() else 0.0
+    recall = float((pred_dist[gt_surface] <= tolerance).mean()) if gt_surface.any() else 0.0
+    return 0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall)
+
+
 def train_one_epoch(
     model: torch.nn.Module,
     data_loader: Iterable,
@@ -285,12 +313,24 @@ def evaluate(data_loader, model, device, amp_autocast, log_every=50, threshold=0
         samples = samples.to(device)
         with amp_autocast():
             outputs = model(samples, texts)
+            stage_states = outputs.get("stage_states") if isinstance(outputs, dict) else None
             if isinstance(outputs, dict):
                 pred = outputs.get("pred_masks", None)
             elif isinstance(outputs, tuple):
                 pred = next((x for x in outputs if isinstance(x, torch.Tensor) and x.ndim >= 3), outputs[0])
             else:
                 pred = outputs
+
+        if stage_states is not None and vis_dir:
+            state_dir = os.path.join(vis_dir, "stage_states")
+            os.makedirs(state_dir, exist_ok=True)
+            serializable = {}
+            for stage_name, state in stage_states.items():
+                serializable[stage_name] = {
+                    key: value.detach().cpu() if torch.is_tensor(value) else value
+                    for key, value in state.items()
+                }
+            torch.save(serializable, os.path.join(state_dir, f"batch_{i:05d}.pt"))
 
         gt_mask_list = [t["masks"].to(device) for t in targets]
         for batch_idx, (single_pred, gt_mask) in enumerate(zip(pred, gt_mask_list)):
@@ -312,6 +352,8 @@ def evaluate(data_loader, model, device, amp_autocast, log_every=50, threshold=0
             iou = 1.0 if union == 0 and inter == 0 else inter / (union + 1e-6)
             dice = 2 * inter / (union + inter + 1e-6) if (union + inter) > 0 else 1.0
             hd95 = compute_hd95(single_pred_np, gt_mask_np)
+            cd = compute_center_distance(single_pred_np, gt_mask_np)
+            bf = compute_boundary_fscore(single_pred_np, gt_mask_np, tolerance=2)
 
             if save_vis:
                 try:
@@ -319,7 +361,7 @@ def evaluate(data_loader, model, device, amp_autocast, log_every=50, threshold=0
                     current_sentence = texts[batch_idx]
                     with open(log_file_path, "a", encoding="utf-8") as f:
                         f.write(f"[File]: {current_file_id}\n")
-                        f.write(f"[Score]: IoU={iou:.4f}, Dice={dice:.4f}, HD95={hd95:.4f}\n")
+                        f.write(f"[Score]: IoU={iou:.4f}, Dice={dice:.4f}, CD={cd:.4f}, BF={bf:.4f}, HD95={hd95:.4f}\n")
                         f.write(f"[Prompt]: {current_sentence}\n")
                         f.write("-" * 50 + "\n")
 
@@ -333,15 +375,19 @@ def evaluate(data_loader, model, device, amp_autocast, log_every=50, threshold=0
             metric_logger.meters["iou"].update(iou)
             metric_logger.meters["dice"].update(dice)
             metric_logger.meters["hd95"].update(hd95)
+            metric_logger.meters["cd"].update(cd)
+            metric_logger.meters["bf"].update(bf)
             metric_logger.meters["inter"].update(inter)
             metric_logger.meters["union"].update(union)
 
     m_iou = metric_logger.iou.global_avg
     m_dice = metric_logger.dice.global_avg
+    m_cd = metric_logger.cd.global_avg
+    m_bf = metric_logger.bf.global_avg
     m_hd95 = metric_logger.hd95.global_avg
     o_iou = metric_logger.inter.global_avg / (metric_logger.union.global_avg + 1e-6)
 
-    print(f"* mIoU {m_iou:.5f}  mDice {m_dice:.5f}  HD95 {m_hd95:.5f}  oIoU {o_iou:.5f}")
+    print(f"* mIoU {m_iou:.5f}  mDice {m_dice:.5f}  CD {m_cd:.5f}  BF {m_bf:.5f}  HD95 {m_hd95:.5f}  oIoU {o_iou:.5f}")
     stats = {k: meter.global_avg for k, meter in metric_logger.meters.items()}
     stats["oiou"] = o_iou
     return stats

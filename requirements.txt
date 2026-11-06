@@ -1,5 +1,7 @@
 albumentations
 einops
+fvcore
+loguru
 numpy
 opencv-python
 timm
@@ -8,3 +10,4 @@ torchvision
 tqdm
 transformers
 yacs
+pytest
