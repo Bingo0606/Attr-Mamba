@@ -44,4 +44,21 @@ def update_mamba_config(model_size):
                 forward_type="v04",
             )
         )
+    else:
+        # Swin-T exposes hierarchical channels [96, 192, 384, 768].
+        # The decoder consumes them from deep to shallow, matching the
+        # feature hierarchy described in the manuscript.
+        config_dict.update(
+            dict(
+                patch_size=4,
+                depths=[2, 2, 6, 2],
+                dims=[96, 96 * 2, 96 * 4, 96 * 8],
+                ssm_d_state=16,
+                ssm_conv_bias=True,
+                mlp_ratio=4.0,
+                downsample_version="v1",
+                patchembed_version="v1",
+                forward_type="v052d3",
+            )
+        )
     return config_dict

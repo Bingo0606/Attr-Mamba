@@ -148,15 +148,31 @@ class AttrMambaDecoder(nn.Module):
 
         self.image_guidance = nn.ModuleList()
         self.text_guidance = nn.ModuleList()
+        self.sentence_guidance = nn.ModuleList()
         self.scm = nn.ModuleList()
         self.bdm = nn.ModuleList()
+        self.progressive_fusion = nn.ModuleList()
         for i, dim in enumerate(self.stage_dims):
             in_dim = self.stage_dims[i - 1] if i else dim
             text_in = self.text_dim if i == 0 else self.stage_dims[i - 1]
             self.image_guidance.append(nn.Sequential(nn.Conv2d(in_dim, dim, 1), nn.ReLU(inplace=True)))
             self.text_guidance.append(nn.Sequential(nn.Linear(text_in, dim), nn.ReLU(inplace=True)))
+            # SCM always uses the fixed sentence-level [CLS] context from the
+            # complete description; BDM token states are updated across stages.
+            self.sentence_guidance.append(nn.Sequential(nn.Linear(self.text_dim, dim), nn.ReLU(inplace=True)))
             self.scm.append(SentenceSemanticCalibration(dim, **kwargs))
             self.bdm.append(TokenLevelVisionLanguageBoundaryDelineation(dim, window_size=4, **kwargs))
+            if i > 0:
+                self.progressive_fusion.append(
+                    nn.Sequential(
+                        nn.Conv2d(self.stage_dims[i - 1] + dim, dim, 3, padding=1, bias=False),
+                        nn.BatchNorm2d(dim),
+                        nn.ReLU(inplace=True),
+                        nn.Conv2d(dim, dim, 3, padding=1, bias=False),
+                        nn.BatchNorm2d(dim),
+                        nn.ReLU(inplace=True),
+                    )
+                )
 
         final_dim = self.stage_dims[-1]
         self.proj_out = nn.Sequential(
@@ -169,11 +185,12 @@ class AttrMambaDecoder(nn.Module):
         if l_feat.dim() != 3:
             raise ValueError("l_feat must have shape [B,C,L]")
         tokens = l_feat
-        sentence = pooler_out if pooler_out is not None else tokens[:, :, 0]
+        sentence_context = pooler_out if pooler_out is not None else tokens[:, :, 0]
         states = {}
+        stage_visuals = []
         for i in range(self.num_stages):
             x = self.image_guidance[i](x)
-            sentence_i = self.text_guidance[i](sentence)
+            sentence_i = self.sentence_guidance[i](sentence_context)
             tokens_i = self.text_guidance[i](tokens.transpose(1, 2)).transpose(1, 2)
             scm_visual = x if self.disable_scm else self.scm[i](x, sentence_i)
             if self.disable_bdm:
@@ -181,13 +198,17 @@ class AttrMambaDecoder(nn.Module):
             else:
                 bdm_visual, next_tokens = self.bdm[i](scm_visual, tokens_i)
             x, tokens = bdm_visual, next_tokens
-            sentence = tokens.mean(dim=-1)
+            stage_visuals.append(x)
             states[f"stage_{i + 1}"] = {
                 "scm_visual": scm_visual,
                 "bdm_visual": bdm_visual,
                 "text": tokens,
             }
-        out = self.proj_out(x)
+        fused = stage_visuals[0]
+        for i in range(1, len(stage_visuals)):
+            fused = self.progressive_fusion[i - 1](torch.cat((fused, stage_visuals[i]), dim=1))
+            fused = fused + stage_visuals[i]
+        out = self.proj_out(fused)
         want_states = self.return_intermediates if return_intermediates is None else return_intermediates
         return (out, states) if want_states else out
 

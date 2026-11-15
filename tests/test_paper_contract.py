@@ -64,3 +64,18 @@ def test_decoder_can_return_progressive_states():
     assert logits.shape[0] == visual.shape[0]
     assert len(states) == 1
     assert set(states["stage_1"]) == {"scm_visual", "bdm_visual", "text"}
+
+
+def test_decoder_retains_and_fuses_all_stage_visual_states():
+    decoder = AttrMambaDecoder(
+        dims=[8, 8, 8, 8],
+        num_stages=4,
+        use_checkpoint=False,
+        norm_layer="ln2d",
+        text_dim=8,
+        ss2d=IdentitySSM(),
+    )
+    visual = torch.randn(1, 8, 8, 8)
+    tokens = torch.randn(1, 8, 5)
+    logits = decoder(visual, tokens, None, tokens[:, :, 0])
+    assert logits.shape == (1, 1, 16, 16)

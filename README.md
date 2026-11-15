@@ -10,7 +10,7 @@ The released implementation follows the revised manuscript:
 
 - **SCM:** sentence feature `f_cls` produces `(alpha, beta, gamma)` and calibrates the visual state before one SS2D residual update.
 - **BDM:** visual windows are concatenated with all token features into one `N_win x (K^2 + L)` interaction grid. SS2D is applied to this packed grid, so the scan can propagate information across windows; visual states are restored and text states are aggregated with learned spatial weights.
-- **Cascade:** SCM and BDM are applied successively at each decoding stage, with the updated token state passed to the next stage.
+- **Cascade:** SCM and BDM are applied successively at each decoding stage. The sentence-level [CLS] context remains fixed for SCM, while BDM updates the contextual token state passed to the next stage; stage visual states are retained and progressively fused before mask prediction.
 - **Objective:** `L = L_dice + L_focal + 0.1 L_boundary`, where the boundary weight map uses a radius-1 (3 x 3) square structuring element and `eta=5`.
 
 <p align="center"><img src="assets/figures/conceptual-comparison.png" width="86%" alt="Conceptual comparison"></p>
@@ -51,10 +51,9 @@ python main.py --eval --model AttrMamba --data-set ref-lits \
   --test-split test --resume ./outputs/ref_lits/best_checkpoint.pth
 ```
 
-The default decoder has four cascaded stages. The implementation exposes the revision controls used for ablations:
+The default decoder has four cascaded SCM--BDM stages. The implementation keeps the paper's default four-stage protocol; the decoder also retains the manuscript's progressive state interface for stage-wise analysis.
 
 ```text
---num-stages {1,2,3,4,5,6}
 --disable-scm       # bypass SCM; retraining is required for Table II-style ablations
 --disable-bdm       # bypass BDM; retraining is required for Table II-style ablations
 --text-mode {normal,empty,no-text}
@@ -84,7 +83,7 @@ python dataset_protocol/tools/audit_release.py dataset_protocol
 
 ## Results from the revised manuscript
 
-All values below are reproduced under the unified evaluation protocol and are reported as mean ± standard deviation over five independently trained runs. mIoU and mDice are percentages; HD95 is in pixels.
+Main comparison and retraining-ablation values below follow the unified evaluation protocol and are reported as mean ± standard deviation over five independently trained runs. mIoU and mDice are percentages; HD95 is in pixels. The fixed-model text-sensitivity and clinical/noisy-text sections state their own aggregation levels.
 
 | Dataset | mIoU | mDice | HD95 |
 | --- | ---: | ---: | ---: |
@@ -116,10 +115,19 @@ The following rows are independent retraining variants; the full progressive dec
 
 | Stages | mIoU | mDice | HD95 | Params (M) | GFLOPs |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| 1 | 65.51 ± 0.58 | 74.72 ± 0.67 | 13.89 ± 0.82 | 184.16 | 211.73 |
-| 2 | 66.72 ± 0.54 | 76.03 ± 0.57 | 12.94 ± 0.78 | 185.85 | 212.21 |
+| 1 | 65.51 ± 0.58 | 74.72 ± 0.67 | 13.89 ± 0.82 | 144.53 | 201.32 |
+| 2 | 66.72 ± 0.54 | 76.03 ± 0.57 | 12.94 ± 0.78 | 168.47 | 207.48 |
 | 3 | 68.03 ± 0.49 | 77.46 ± 0.59 | 11.72 ± 0.73 | 192.12 | 213.64 |
 | 4 (default) | 69.62 ± 0.44 | 78.41 ± 0.56 | 10.20 ± 0.68 | 216.20 | 219.89 |
+| 5 | 69.78 ± 0.47 | 78.54 ± 0.58 | 10.23 ± 0.82 | 239.34 | 225.95 |
+| 6 | 69.72 ± 0.51 | 78.49 ± 0.61 | 10.18 ± 0.74 | 263.57 | 232.07 |
+
+The controlled (N=4) variants are:
+
+| Variant | mIoU | mDice | HD95 | Params (M) | GFLOPs |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| w/o cross-stage text feedback | 67.64 ± 0.61 | 76.61 ± 0.69 | 11.26 ± 0.74 | 216.20 | 219.89 |
+| weight-shared cascade | 67.86 ± 0.52 | 76.94 ± 0.62 | 11.73 ± 0.75 | 147.68 | 211.23 |
 
 <p align="center"><img src="assets/figures/stage-wise-heatmaps.jpg" width="100%" alt="Stage-wise heatmaps"></p>
 <p align="center"><b>Stage-wise states.</b> Intermediate visual states become progressively concentrated around the referred target.</p>
@@ -138,6 +146,36 @@ The operator ablation replaces SS2D in SCM and/or BDM while preserving the surro
 On the matched prompt-perturbation subsets, Ref-LITS obtains `76.96/86.31/2.15/78.05/6.19` for original text and `45.78/50.90/80.34/42.13/86.54` under spatial perturbation (mIoU/mDice/CD/BF/HD95). Morphology perturbation obtains `70.35/79.26/12.91/68.00/19.14`. Ref-LIDC values are provided in the manuscript table.
 
 For clinical/noisy text, each setting contains 2,000 image-text evaluations (400 held-out instances × five independently written descriptions), and the same 400 instances are reused for original prompts. Results are averaged within each run and summarized across the five trained seeds. This distinction is important: these are fixed-model inference evaluations, not additional retraining runs.
+
+### Public-benchmark text sensitivity
+
+| Dataset | Prompt condition | mIoU | mDice | HD95 |
+| --- | --- | ---: | ---: | ---: |
+| QaTa-COV19 | Original | 85.77 ± 0.64 | 92.15 ± 0.76 | 11.63 ± 0.72 |
+| QaTa-COV19 | Spatial coarsening | 83.26 ± 0.78 | 90.28 ± 0.88 | 13.33 ± 0.91 |
+| QaTa-COV19 | w/o spatial location | 81.10 ± 1.12 | 88.43 ± 1.26 | 14.69 ± 1.33 |
+| QaTa-COV19 | w/o region count | 82.54 ± 0.93 | 89.49 ± 1.04 | 13.88 ± 1.12 |
+| QaTa-COV19 | Empty text | 78.75 ± 1.48 | 86.08 ± 1.67 | 16.67 ± 2.12 |
+| MosMedData+ | Original | 66.01 ± 0.49 | 79.51 ± 0.52 | 13.19 ± 0.69 |
+| MosMedData+ | Spatial coarsening | 63.94 ± 0.63 | 77.62 ± 0.67 | 14.17 ± 0.88 |
+| MosMedData+ | w/o spatial location | 62.36 ± 0.89 | 76.57 ± 1.00 | 15.25 ± 1.26 |
+| MosMedData+ | w/o region count | 63.25 ± 0.79 | 77.13 ± 0.88 | 14.46 ± 1.09 |
+| MosMedData+ | Empty text | 60.53 ± 1.26 | 73.84 ± 1.42 | 17.51 ± 1.85 |
+
+### Clinical and noisy-text robustness
+
+| Dataset | Setting | mIoU | mDice | CD | BF | HD95 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Ref-LITS | Original prompt | 72.28 ± 2.38 | 83.87 ± 2.29 | 2.52 ± 2.09 | 67.52 ± 2.64 | 8.61 ± 2.27 |
+| Ref-LITS | Clinical text | 68.31 ± 3.35 | 81.12 ± 3.07 | 6.17 ± 3.18 | 63.44 ± 3.82 | 11.96 ± 3.04 |
+| Ref-LITS | Clinical + noise 10% | 65.27 ± 4.28 | 78.91 ± 3.45 | 16.54 ± 3.89 | 59.86 ± 4.36 | 19.03 ± 3.96 |
+| Ref-LITS | Clinical + noise 20% | 61.04 ± 4.93 | 75.69 ± 4.36 | 19.63 ± 4.83 | 57.21 ± 5.04 | 23.37 ± 4.61 |
+| Ref-LITS | Clinical + noise 30% | 56.86 ± 5.39 | 72.35 ± 4.83 | 26.16 ± 5.05 | 53.98 ± 5.79 | 28.20 ± 5.07 |
+| Ref-LIDC | Original prompt | 60.27 ± 2.46 | 75.18 ± 1.97 | 1.64 ± 1.96 | 86.47 ± 2.47 | 4.89 ± 2.39 |
+| Ref-LIDC | Clinical text | 58.23 ± 3.31 | 73.54 ± 3.18 | 2.73 ± 3.04 | 83.51 ± 3.46 | 7.27 ± 3.11 |
+| Ref-LIDC | Clinical + noise 10% | 56.15 ± 4.49 | 71.82 ± 3.95 | 9.36 ± 4.05 | 81.07 ± 4.28 | 13.24 ± 3.82 |
+| Ref-LIDC | Clinical + noise 20% | 52.39 ± 5.83 | 68.58 ± 5.15 | 16.70 ± 4.82 | 77.11 ± 4.89 | 18.58 ± 4.56 |
+| Ref-LIDC | Clinical + noise 30% | 48.01 ± 6.71 | 64.61 ± 6.09 | 20.04 ± 5.25 | 75.16 ± 5.61 | 22.35 ± 5.09 |
 
 ## Reproducibility details
 
