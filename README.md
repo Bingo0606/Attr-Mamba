@@ -1,6 +1,6 @@
 # Attr-Mamba
 
-Official implementation of **Attr-Mamba: Attribute-Guided State Space Model for Progressive Medical Referring Image Segmentation**.
+Official implementation of **Attr-Mamba: Attribute-Guided Refinement with Selective State Spaces for Medical Referring Image Segmentation**.
 
 Attr-Mamba receives a medical image and a complete clinical-style referring description and progressively refines a text-conditioned segmentation mask. Sentence-level features are used for global semantic calibration, while token-level features from the same description are used for localized vision-language interaction. The two granularities are complementary representations, not manually separated anatomy and morphology word lists.
 
